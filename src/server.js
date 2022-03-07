@@ -70,6 +70,18 @@ io.on("connection", (socket) => {
   socket.on("nickname", (nickname) => (socket["nickname"] = nickname));
 });
 
+/* 비디오파트 시작 */
+io.on("connection", (socket) => {
+  socket.on("join_room", (roomName, done) => {
+    socket.join(roomName);
+    done();
+    socket.to(roomName).emit("videoWelcome");
+  });
+  socket.on("offer", (offer, roomName) => {
+    socket.to(roomName).emit("offer", offer);
+  });
+});
+
 /* const sockets = [];
 wss.on("connection", (socket) => {
   sockets.push(socket);
