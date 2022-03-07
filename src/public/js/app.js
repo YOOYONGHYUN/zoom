@@ -173,17 +173,18 @@ camerasSelect.addEventListener("input", handleCameraChange);
 const videowelcome = document.getElementById("videowelcome");
 const videoWelcomeForm = videowelcome.querySelector("form");
 
-async function startMedia() {
+async function initCall() {
   videoWelcomeForm.hidden = true;
   call.hidden = false;
   await getMedia();
   makeConnection();
 }
 
-function handleVideoWelcomForm(event) {
+async function handleVideoWelcomForm(event) {
   event.preventDefault();
   const input = videoWelcomeForm.querySelector("input");
-  socket.emit("join_room", input.value, startMedia);
+  await initCall();
+  socket.emit("join_room", input.value);
   videoRoomName = input.value;
   input.value = "";
 }
@@ -195,18 +196,46 @@ videoWelcomeForm.addEventListener("submit", handleVideoWelcomForm);
 socket.on("videoWelcome", async () => {
   const offer = await myPeerConnection.createOffer();
   myPeerConnection.setLocalDescription(offer);
+  console.log("sent the offer");
   socket.emit("offer", offer, roomName);
 });
 
-socket.on("offer", (offer) => {
-  console.log(offer);
+socket.on("offer", async (offer) => {
+  console.log("received the offer");
+  myPeerConnection.setRemoteDescription(offer);
+  const answer = await myPeerConnection.createAnswer();
+  myPeerConnection.setLocalDescription(answer);
+  socket.emit("answer", answer, roomName);
+  console.log("sent the answer");
+});
+
+socket.on("answer", (answer) => {
+  console.log("received the answer");
+  myPeerConnection.setRemoteDescription(answer);
+});
+
+socket.on("ice", (ice) => {
+  console.log("received the candidate");
+  myPeerConnection.addICECandidate(ice);
 });
 
 //RTC Code
 
 function makeConnection() {
   myPeerConnection = new RTCPeerConnection();
+  myPeerConnection.addEventListener("icecandidate", handleIce);
+  myPeerConnection.addEventListener("addstream", handleAddStream);
   myStream
     .getTracks()
     .forEach((track) => myPeerConnection.addTrack(track, myStream));
+}
+
+function handleIce(data) {
+  console.log("sent the candidate");
+  socket.emit("ice", data.candidate, roomName);
+}
+
+function handleAddStream(data) {
+  const peerFace = document.getElementById("peerFace");
+  peerFace.srcObject = data.stream;
 }
