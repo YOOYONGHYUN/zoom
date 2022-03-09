@@ -1,85 +1,5 @@
 const socket = io();
 
-const welcome = document.getElementById("welcome");
-const roomNameForm = document.getElementById("roomname");
-const room = document.getElementById("room");
-const nameForm = welcome.querySelector("#name");
-
-room.hidden = true;
-
-let roomName;
-
-function addMessage(message) {
-  const ul = room.querySelector("ul");
-  const li = document.createElement("li");
-  li.innerText = message;
-  ul.appendChild(li);
-}
-
-function handleMessageSubmit(event) {
-  event.preventDefault();
-  const input = room.querySelector("#msg input");
-  const value = input.value;
-  socket.emit("new_message", input.value, roomName, () => {
-    addMessage(`You: ${value}`);
-  });
-  input.value = "";
-}
-
-function handleNicknameSubmit(event) {
-  event.preventDefault();
-  const input = welcome.querySelector("#name input");
-  socket.emit("nickname", input.value);
-}
-
-function showRoom() {
-  welcome.hidden = true;
-  room.hidden = false;
-  const h3 = room.querySelector("h3");
-  h3.innerText = `Room ${roomName}`;
-  const msgForm = room.querySelector("#msg");
-  msgForm.addEventListener("submit", handleMessageSubmit);
-}
-
-function handleRoomSubmit(event) {
-  event.preventDefault();
-  const input = roomNameForm.querySelector("input");
-  socket.emit("enter_room", input.value, showRoom);
-  roomName = input.value;
-  input.value = "";
-}
-
-nameForm.addEventListener("submit", handleNicknameSubmit);
-roomNameForm.addEventListener("submit", handleRoomSubmit);
-
-socket.on("welcome", (user, newCount) => {
-  const h3 = room.querySelector("h3");
-  h3.innerText = `Room ${roomName} (${newCount})`;
-  addMessage(`${user} joined!`);
-});
-
-socket.on("bye", (user, newCount) => {
-  const h3 = room.querySelector("h3");
-  h3.innerText = `Room ${roomName} (${newCount})`;
-  addMessage(`${user} left!`);
-});
-
-socket.on("new_message", addMessage);
-
-socket.on("room_change", (rooms) => {
-  const roomList = welcome.querySelector("ul");
-  roomList.innerText = "";
-  if (rooms.length === 0) {
-    return;
-  }
-  rooms.forEach((room) => {
-    const li = document.createElement("li");
-    li.innerText = room;
-    roomList.appendChild(li);
-  });
-});
-
-/* 비디오 파트 시작 */
 const myFace = document.getElementById("myFace");
 const muteBtn = document.getElementById("mute");
 const cameraBtn = document.getElementById("camera");
@@ -91,8 +11,9 @@ call.hidden = true;
 let myStream;
 let muted = false;
 let cameraOff = false;
-let videoRoomName;
+let roomName;
 let myPeerConnection;
+let myDataChannel;
 
 async function getCameras() {
   try {
@@ -108,13 +29,13 @@ async function getCameras() {
       }
       camerasSelect.appendChild(option);
     });
-  } catch (err) {
-    console.log(err);
+  } catch (e) {
+    console.log(e);
   }
 }
 
 async function getMedia(deviceId) {
-  const initialConstraints = {
+  const initialConstrains = {
     audio: true,
     video: { facingMode: "user" },
   };
@@ -124,14 +45,14 @@ async function getMedia(deviceId) {
   };
   try {
     myStream = await navigator.mediaDevices.getUserMedia(
-      deviceId ? cameraConstraints : initialConstraints
+      deviceId ? cameraConstraints : initialConstrains
     );
     myFace.srcObject = myStream;
     if (!deviceId) {
       await getCameras();
     }
-  } catch (err) {
-    console.log(err);
+  } catch (e) {
+    console.log(e);
   }
 }
 
@@ -175,31 +96,35 @@ muteBtn.addEventListener("click", handleMuteClick);
 cameraBtn.addEventListener("click", handleCameraClick);
 camerasSelect.addEventListener("input", handleCameraChange);
 
-//Welcome Form (Join the room)
-const videowelcome = document.getElementById("videowelcome");
-const videoWelcomeForm = videowelcome.querySelector("form");
+// Welcome Form (join a room)
+
+const welcome = document.getElementById("welcome");
+const welcomeForm = welcome.querySelector("form");
 
 async function initCall() {
-  videowelcome.hidden = true;
+  welcome.hidden = true;
   call.hidden = false;
   await getMedia();
   makeConnection();
 }
 
-async function handleVideoWelcomForm(event) {
+async function handleWelcomeSubmit(event) {
   event.preventDefault();
-  const input = videoWelcomeForm.querySelector("input");
+  const input = welcomeForm.querySelector("input");
   await initCall();
   socket.emit("join_room", input.value);
-  videoRoomName = input.value;
+  roomName = input.value;
   input.value = "";
 }
 
-videoWelcomeForm.addEventListener("submit", handleVideoWelcomForm);
+welcomeForm.addEventListener("submit", handleWelcomeSubmit);
 
-//Socket Code
+// Socket Code
 
-socket.on("videoWelcome", async () => {
+socket.on("welcome", async () => {
+  myDataChannel = myPeerConnection.createDataChannel("chat");
+  myDataChannel.addEventListener("message", (event) => console.log(event.data));
+  console.log("made data channel");
   const offer = await myPeerConnection.createOffer();
   myPeerConnection.setLocalDescription(offer);
   console.log("sent the offer");
@@ -207,6 +132,12 @@ socket.on("videoWelcome", async () => {
 });
 
 socket.on("offer", async (offer) => {
+  myPeerConnection.addEventListener("datachannel", (event) => {
+    myDataChannel = event.channel;
+    myDataChannel.addEventListener("message", (event) =>
+      console.log(event.data)
+    );
+  });
   console.log("received the offer");
   myPeerConnection.setRemoteDescription(offer);
   const answer = await myPeerConnection.createAnswer();
@@ -221,11 +152,11 @@ socket.on("answer", (answer) => {
 });
 
 socket.on("ice", (ice) => {
-  console.log("received the candidate");
+  console.log("received candidate");
   myPeerConnection.addIceCandidate(ice);
 });
 
-//RTC Code
+// RTC Code
 
 function makeConnection() {
   myPeerConnection = new RTCPeerConnection({
@@ -249,7 +180,7 @@ function makeConnection() {
 }
 
 function handleIce(data) {
-  console.log("sent the candidate");
+  console.log("sent candidate");
   socket.emit("ice", data.candidate, roomName);
 }
 
