@@ -84,10 +84,9 @@ const myFace = document.getElementById("myFace");
 const muteBtn = document.getElementById("mute");
 const cameraBtn = document.getElementById("camera");
 const camerasSelect = document.getElementById("cameras");
-
 const call = document.getElementById("call");
 
-call.hidden;
+call.hidden = true;
 
 let myStream;
 let muted = false;
@@ -163,6 +162,13 @@ function handleCameraClick() {
 
 async function handleCameraChange() {
   await getMedia(camerasSelect.value);
+  if (myPeerConnection) {
+    const videoTrack = myStream.getVideoTracks()[0];
+    const videoSender = myPeerConnection
+      .getSenders()
+      .find((sender) => sender.track.kind === "video");
+    videoSender.replaceTrack(videoTrack);
+  }
 }
 
 muteBtn.addEventListener("click", handleMuteClick);
@@ -174,7 +180,7 @@ const videowelcome = document.getElementById("videowelcome");
 const videoWelcomeForm = videowelcome.querySelector("form");
 
 async function initCall() {
-  videoWelcomeForm.hidden = true;
+  videowelcome.hidden = true;
   call.hidden = false;
   await getMedia();
   makeConnection();
@@ -216,13 +222,25 @@ socket.on("answer", (answer) => {
 
 socket.on("ice", (ice) => {
   console.log("received the candidate");
-  myPeerConnection.addICECandidate(ice);
+  myPeerConnection.addIceCandidate(ice);
 });
 
 //RTC Code
 
 function makeConnection() {
-  myPeerConnection = new RTCPeerConnection();
+  myPeerConnection = new RTCPeerConnection({
+    iceServers: [
+      {
+        urls: [
+          "stun:stun.l.google.com:19302",
+          "stun:stun1.l.google.com:19302",
+          "stun:stun2.l.google.com:19302",
+          "stun:stun3.l.google.com:19302",
+          "stun:stun4.l.google.com:19302",
+        ],
+      },
+    ],
+  });
   myPeerConnection.addEventListener("icecandidate", handleIce);
   myPeerConnection.addEventListener("addstream", handleAddStream);
   myStream

@@ -74,7 +74,6 @@ io.on("connection", (socket) => {
 io.on("connection", (socket) => {
   socket.on("join_room", (roomName) => {
     socket.join(roomName);
-
     socket.to(roomName).emit("videoWelcome");
   });
   socket.on("offer", (offer, roomName) => {
